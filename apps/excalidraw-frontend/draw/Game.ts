@@ -27,6 +27,9 @@ export class Game{
     private ShapeSelectedIndex : number = -1 ;
     private fontSize = 18 ; 
 
+    private driftX = 0 ;
+    private driftY = 0 ;
+
     constructor(canvas : HTMLCanvasElement,cxt : CanvasRenderingContext2D ,roomId : string,socket : WebSocket){
         this.canvas = canvas ;
         this.cxt = cxt  ;
@@ -103,7 +106,18 @@ export class Game{
                   })
 
                   // updating coords
+                  if(["Text","Pencil"].some((type : string) => type == (this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).type)){
+                    const UpdatedCoords = (this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).coords.map(({x,y} : Coordinate) : Coordinate => 
+                        {
+                            return {x : x + this.driftX,  y : y + this.driftY}
+                        }
+                    )
+                    this.ExistingShapes[this.ShapeSelectedIndex].shape.coords = UpdatedCoords ;
+                    this.driftX = this.driftY = 0 ;
+                  }
+
                   this.insertIntoCoordShapeIdMap(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ShapeSelectedIndex) ;
+                  this.SocketHandlers.updateShape(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ExistingShapes[this.ShapeSelectedIndex].id)
                   this.ShapeSelectedIndex = -1 ;
                 }
                 return ; 
@@ -150,6 +164,7 @@ export class Game{
                 const dy = ((e.clientY) - (this.lastY))/this.infinite.scale  ;
 
                 if(this.ShapeSelectedIndex >= 0){
+                    this.driftX += dx ; this.driftY += dy ;
                     this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.x += dx ; 
                     this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.y += dy ; 
                     this.ExistingShapes[this.ShapeSelectedIndex].shape.endXY.x   += dx ; 

@@ -35,7 +35,7 @@ export function Canvas({ roomId , socket } : { roomId : string , socket : WebSoc
     },[roomId,socket])  
 
     return(
-        <div className={`${(ShapeSelected == "Move") ? "cursor-grab" : (ShapeSelected == "Update") ? "":"cursor-crosshair"} `}>
+        <div className={`${(ShapeSelected == "Move") ? "cursor-grab" : (ShapeSelected == "Update") ? "cursor-move":"cursor-crosshair"} `}>
         <ShapeSelectBar ShapeSelected={ShapeSelected} SelectShape={SelectShape}/>
         <canvas ref={canvasRef} tabIndex = {0} width={document.body.clientWidth} height={document.body.clientHeight}> </canvas>
         </div>

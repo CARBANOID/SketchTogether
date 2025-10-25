@@ -5,7 +5,7 @@ import { Game } from "@/draw/Game";
 
 export function Canvas({ roomId , socket } : { roomId : string , socket : WebSocket } ){
     const canvasRef = useRef<HTMLCanvasElement>(null) ; 
-    const [ShapeSelected,setShape] = useState<ShapeLabelType>("Navigate") ; 
+    const [ShapeSelected,setShape] = useState<ShapeLabelType>("Move") ; 
     const SelectShape = (shape: ShapeLabelType) => setShape(shape)
 
     const [game,setGame] = useState<Game>() ;
@@ -27,15 +27,17 @@ export function Canvas({ roomId , socket } : { roomId : string , socket : WebSoc
         if(!cxt) return ; 
         
         const g = new Game(canvas,cxt,roomId,socket) ; 
+        g.SelectShape(ShapeSelected) ;
+        
         setGame(g) ;
 
         return () => g.cleanup() ;
     },[roomId,socket])  
 
     return(
-        <div className={`${(ShapeSelected == "Navigate") ? "cursor-grab" : "cursor-crosshair"} `}>
+        <div className={`${(ShapeSelected == "Move") ? "cursor-grab" : (ShapeSelected == "Update") ? "":"cursor-crosshair"} `}>
         <ShapeSelectBar ShapeSelected={ShapeSelected} SelectShape={SelectShape}/>
-        <canvas ref={canvasRef} width={document.body.clientWidth} height={document.body.clientHeight}> </canvas>
+        <canvas ref={canvasRef} tabIndex = {0} width={document.body.clientWidth} height={document.body.clientHeight}> </canvas>
         </div>
     )
 }

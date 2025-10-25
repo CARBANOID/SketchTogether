@@ -1,7 +1,8 @@
+/*
 type Rectangle = {
     type : "Rectangle",
-    x : number,
-    y : number,
+    startXY : Coordinate ,
+    endXY : Coordinate
     width: number,
     height: number,
     coords : Coordinate[],
@@ -9,6 +10,8 @@ type Rectangle = {
 
 type Circle = {
     type : "Circle",
+    startXY : Coordinate ,
+    endXY   : Coordinate
     centerX : number,
     centerY : number,
     radiusX : number,
@@ -18,23 +21,36 @@ type Circle = {
 
 type Line = {
     type : "Line",
-    startX : number ,
-    startY : number ,
-    endX   : number ,
-    endY   : number ,
+    startXY : Coordinate ,
+    endXY   : Coordinate
     coords : Coordinate[],
 }
 
 type Pencil = {
    type : "Pencil",
+   startXY : Coordinate ,
+   endXY : Coordinate,
    coords : Coordinate[],
 }
 
+// export type Shape = Rectangle | Circle | Line| Pencil | Text  // Game1.ts
+
+*/
+
+type Text = {
+   type    : "Text",
+   text    : string 
+   startXY : Coordinate ,
+   endXY   : Coordinate
+   coords  : Coordinate[],
+}
+
 export type Coordinate = { x : number , y : number} ;  
-export type Shape = Rectangle | Circle | Line| Pencil 
 
 // Final Shape
-// export type Shape = { 
-//     type : "Circle" | "Rectangle" | "Line" | "Pencil" | "Text" ,
-//     coords : Coordinate[]
-// }
+export type Shape = { 
+    type : "Circle" | "Rectangle" | "Line" | "Pencil" ,
+    startXY : Coordinate ,
+    endXY   : Coordinate
+    coords  : Coordinate[]
+} | Text

@@ -1,7 +1,7 @@
 import { useRef } from "react"
-import { Circle, Square, Minus, MousePointer,Pencil,TextInitial,HandGrabIcon} from "lucide-react"
+import { Circle, Square, Minus, MousePointer,Pencil,TextInitial,HandGrabIcon , Trash2} from "lucide-react"
 
-export type ShapeLabelType = "Circle" | "Rectangle" | "Line" | "Pencil" | "Move" | "Navigate" | "Text" 
+export type ShapeLabelType = "Circle" | "Rectangle" | "Line" | "Pencil" | "Move" | "Update" | "Text" | "Delete"
 
 type ShapeDetails = {
     label: ShapeLabelType,
@@ -11,12 +11,12 @@ type ShapeDetails = {
 
 const shapeOptions : ShapeDetails[] = [
     {
-        label: "Navigate",
+        label: "Move",
         icon :  HandGrabIcon,
         className: "w-5 h-5"      
     },
     {
-        label: "Move",
+        label: "Update",
         icon :  MousePointer,
         className: "w-5 h-5"      
     },
@@ -44,12 +44,17 @@ const shapeOptions : ShapeDetails[] = [
         label: "Pencil",
         icon :  Pencil,
         className: "w-5 h-5"      
+    },
+    {
+        label: "Delete",
+        icon :  Trash2,
+        className: "w-5 h-5"      
     }
 ]
 
 export const ShapeSelectBar = ( { ShapeSelected, SelectShape } : { ShapeSelected : ShapeLabelType ,SelectShape: (shape: ShapeLabelType) => void}) => {
     return(
-        <div className="fixed flex top-5 left-3/7 items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-2">
+        <div className="fixed flex top-5 left-2/5 items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-2">
             {shapeOptions.map((shapeOpt) => <ShapeOption key={shapeOpt.label} ShapeSelected={ShapeSelected} shapeOpt = {shapeOpt} SelectShape={SelectShape}/> )}
         </div>
     )

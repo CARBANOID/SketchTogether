@@ -142,10 +142,11 @@ app.get("/api/v1/room/chats/:roomId",authMiddleWare,async(req,res) =>{
             roomId : roomId
         },
         select : {
+            id : true ,
             message : true 
         },
         orderBy :{
-            id : "desc"
+            id : "asc"
         },
         take : 50 // 50 messages will come 
     })
@@ -165,7 +166,8 @@ app.get("/api/v1/room/shapes/:roomId",authMiddleWare,async(req,res) =>{
             roomId : roomId
         },
         select : {
-            shape : true 
+            shape : true ,
+            id    : true
         },
         orderBy :{
             id : "desc"
@@ -173,7 +175,7 @@ app.get("/api/v1/room/shapes/:roomId",authMiddleWare,async(req,res) =>{
     })
 
     res.status(200).json({
-        shapes    :  shapes,
+        shapes    :   shapes,
         message   :  "shape retrived" 
     })
 })

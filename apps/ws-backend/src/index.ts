@@ -5,7 +5,13 @@ import  { prismaClient } from "@repo/db/client"
 import  { Queue } from "./queue";
 import  { Shape } from "@repo/common/GameShapes"
  
-const queue = new Queue() ; 
+const messageInsertQueue = new Queue() ; 
+const messageUpdateQueue = new Queue() ; 
+const messageDeleteQueue = new Queue() ; 
+
+const shapeInsertQueue = new Queue() ; 
+const shapeUpdateQueue = new Queue() ; 
+const shapeDeleteQueue = new Queue() ; 
 
 const wsClient = new WebSocketServer( { 
     port : 3002 
@@ -13,6 +19,9 @@ const wsClient = new WebSocketServer( {
 
 type RoomSocketArrayRecord = Record<string,Array<ws>> ;
 type UserRoomArrayRecord   = Record<string,Array<string>> ;
+let LastShapeId : number = 0 ; 
+let LastMessageId : number = 0 ; 
+
 // type SocketUserIdMapping   = Map<ws,string> ;
 
 let RoomSocketArray : RoomSocketArrayRecord = {} ;
@@ -22,8 +31,9 @@ let UserRoomArray   : UserRoomArrayRecord   = {} ;
 type SocketPayLoad = {
     reqType  : string,
     roomId   : string,
+    id?       : number,
     message? : string,
-    shape?   : Shape
+    shape?   : Shape,
 }
 
 wsClient.on("connection",(socket : ws,request : IncomingMessage) =>{
@@ -67,6 +77,30 @@ wsClient.on("connection",(socket : ws,request : IncomingMessage) =>{
                 roomId  : roomId,
                 message : "room joined"
             }))
+            
+            const LastShapeRecord = await prismaClient.shape.findFirst({
+                orderBy : {
+                    id : "desc"
+                },
+                select : {
+                    id : true
+                },
+                take : 1
+            })
+
+            if(LastShapeRecord) LastShapeId = LastShapeRecord.id ;
+
+            const LastMessageRecord = await prismaClient.chat.findFirst({
+                orderBy : {
+                    id : "desc"
+                },
+                select : {
+                    id : true
+                },
+                take : 1
+            })
+
+            if(LastMessageRecord) LastMessageId = LastMessageRecord.id ; 
         }
         else if(reqType == "send-chat"){
             if(UserRoomArray[userId]!.includes(roomId)){
@@ -79,31 +113,32 @@ wsClient.on("connection",(socket : ws,request : IncomingMessage) =>{
                     }))                      
                     return ;
                 }
-
+                
                 const data = {
+                    id      : ++LastMessageId,
                     userId  : userId,
                     message : message,
                     roomId  : roomId
                 }
 
-                queue.push(data) ; 
+                messageInsertQueue.push(data) ; 
 
-                RoomSocketArray[roomId]!.forEach( (s : ws) => (s != socket) ? s.send(JSON.stringify({
+                RoomSocketArray[roomId]!.forEach( (s : ws) => s.send(JSON.stringify({
                     resType : "delivered-chat",
                     roomId  : roomId ,
+                    chatId  : LastMessageId,
                     chat    : message
-                })) : "") ; 
+                }))) ; 
 
-                while(queue.length() != 0) {
-                    const ele : any =  queue.front() ;
+                while(messageInsertQueue.length() != 0) {
+                    const ele : any =  messageInsertQueue.front() ;
                     try{
                         await prismaClient.chat.create( { data : ele } ) ;
-                        queue.pop() ;
+                        messageInsertQueue.pop() ;
                     }
                     catch(e){
                         console.log({
                             error   : "failed to push message in database !! ",
-                            message : ele.message,
                             e
                         })
                     }
@@ -129,29 +164,30 @@ wsClient.on("connection",(socket : ws,request : IncomingMessage) =>{
                 }
 
                 const data = {
+                    id : ++LastShapeId,
                     userId  : userId,
                     shape   : shape,
                     roomId  : roomId
                 }
 
-                queue.push(data) ; 
+                shapeInsertQueue.push(data) ; 
 
-                RoomSocketArray[roomId]!.forEach( (s : ws) => (s != socket) ? s.send(JSON.stringify({
+                RoomSocketArray[roomId]!.forEach( (s : ws) => s.send(JSON.stringify({
                     resType : "delivered-shape",
                     roomId  : roomId ,
+                    shapeId : LastShapeId ,
                     shape   : shape
-                })) : "") ; 
+                }))) ; 
 
-                while(queue.length() != 0) {
-                    const ele : any =  queue.front() ;
+                while(shapeInsertQueue.length() != 0) {
+                    const ele : any =  shapeInsertQueue.front() ;
                     try{
                         await prismaClient.shape.create( { data : ele } ) ;
-                        queue.pop() ;
+                        shapeInsertQueue.pop() ;
                     }
                     catch(e){
                         console.log({
                             error   : "failed to push shape in database !! ",
-                            message : ele.message,
                             e
                         })
                     }
@@ -163,6 +199,112 @@ wsClient.on("connection",(socket : ws,request : IncomingMessage) =>{
                     message : "You are not part of this Room"
                 }))
             }
+        }
+        else if(reqType == "delete-shape"){
+            if(UserRoomArray[userId]!.includes(roomId)){
+                const shapeId : number | undefined = payload.id ;
+
+                if(typeof shapeId == "undefined"){
+                    socket.send(JSON.stringify({
+                        resType : "shape-undefined",
+                        message : "undefined shapeId"
+                    }))                      
+                    return ;
+                }
+
+                const data = {
+                    id : shapeId ,
+                    roomId : roomId 
+                } ;
+                shapeDeleteQueue.push(data) ; 
+
+                RoomSocketArray[roomId]!.forEach( (s : ws) => s.send(JSON.stringify({
+                    resType : "deleted-shape",
+                    roomId  : roomId ,
+                    shapeId : shapeId ,
+                }))) ; 
+
+                while(shapeDeleteQueue.length() != 0) {
+                    const ele : any =  shapeDeleteQueue.front() ;
+                    try{
+                        await prismaClient.shape.delete( { where : ele } ) ;
+                        shapeDeleteQueue.pop() ;
+                    }
+                    catch(e){
+                        console.log({
+                            error   : `failed to delete shape with id : ${shapeId} in database !! `,
+                            e
+                        })
+                    }
+                }
+            }
+            else{
+                socket.send(JSON.stringify({
+                    resType : "not-in-room" ,
+                    message : "You are not part of this Room"
+                }))
+            }            
+        }
+        else if(reqType == "update-shape"){
+            if(UserRoomArray[userId]!.includes(roomId)){
+
+                const shape : Shape | undefined = payload.shape ; 
+                const shapeId : number | undefined = payload.id ;
+
+                if(typeof shape == "undefined" || shape == null || typeof shapeId == "undefined"){
+                    socket.send(JSON.stringify({
+                        resType : "shape-undefined",
+                        message : "undefined shape/shapeId"
+                    }))                      
+                    return ;
+                }
+
+                const data = {
+                    id  : shapeId ,
+                    roomId : roomId ,
+                    shape : shape  
+                } ;
+
+                shapeUpdateQueue.push(data) ; 
+
+                RoomSocketArray[roomId]!.forEach( (s : ws) => (s != socket) ? s.send(JSON.stringify({
+                    resType : "updated-shape",
+                    roomId  : roomId ,
+                    shapeId : shapeId ,
+                    shape   : shape  
+                })) : null) ; 
+
+                while(shapeUpdateQueue.length() != 0) {
+                    const ele : any =  shapeUpdateQueue.front() ;
+                    try{
+                        await prismaClient.shape.update( 
+                            { 
+                                where : { 
+                                    id : ele.id ,
+                                    roomId : ele.roomId
+                                } , 
+                                data : {
+                                    shape : ele.shape
+                                } 
+                            }
+                        ) ;
+
+                        shapeUpdateQueue.pop() ;
+                    }
+                    catch(e){
+                        console.log({
+                            error   : `failed to update shape with id : ${shapeId} in database !! `,
+                            e
+                        })
+                    }
+                }
+            }
+            else{
+                socket.send(JSON.stringify({
+                    resType : "not-in-room" ,
+                    message : "You are not part of this Room"
+                }))
+            }            
         }
         else if(reqType == "leave-room"){
             const roomIndex = UserRoomArray[userId]!.indexOf(roomId) ;

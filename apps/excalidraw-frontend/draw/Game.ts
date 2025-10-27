@@ -21,11 +21,15 @@ export class Game{
     private ShapeSelected : ShapeLabelType = "Move" ;   
     private Coords  : Coordinate[] = [] ;
     private infinite : Infinite ;
+
     private text : string = "" ;
+    private textIndex : number = 0 ;
+    private fontSize = 18 ; 
+    private clickCount : number = 0 ;
+    
     private dpr  : number = window.devicePixelRatio || 1 ;
     private CoordShapeIndexMap = new Map<string,number>() ;
     private ShapeSelectedIndex : number = -1 ;
-    private fontSize = 18 ; 
 
     private driftX = 0 ;
     private driftY = 0 ;
@@ -55,6 +59,11 @@ export class Game{
         if(shape.type == "Rectangle") shape.coords = this.canvasShape.getRectangleCoords(StartX,StartY,EndX,EndY)
         else if(shape.type == 'Circle') shape.coords = this.canvasShape.getCircleCoords(StartX + Width/2,StartY + Height/2,Width,Height)
         else if(shape.type == 'Line') shape.coords = this.canvasShape.getLineCoords(StartX,StartY,EndX,EndY)
+        else if(shape.type == 'Text') {
+            shape.coords = this.canvasShape.getTextBoxCoords(shape.text,StartX,StartY) ;
+            shape.endXY.x = shape.coords[shape.coords.length - 1].x ;
+            shape.endXY.y = shape.coords[shape.coords.length - 1].y ;
+        }   
 
         shape.coords.forEach((coord : Coordinate) => this.CoordShapeIndexMap.set(JSON.stringify({x : Math.trunc(coord.x) , y : Math.trunc(coord.y)}),id)) ;
     }
@@ -82,11 +91,31 @@ export class Game{
     private MouseEventHandler = {
         setStartingCoords : (e: globalThis.MouseEvent) =>{ // pointerdown
             this.selected = true ; 
-            this.startX = this.lastX = e.clientX ; 
-            this.startY = this.lastY = e.clientY ; 
+            this.startX = e.clientX ; 
+            this.startY = e.clientY ; 
 
             if(this.ShapeSelected == "Pencil") this.Coords.push({x : this.startX, y : this.startY}) ;
-            else if(this.ShapeSelected == "Text") this.canvasShape.renderTextBox("|",this.startX,this.startY) ; 
+            else if(this.ShapeSelected == "Text") {
+                if(this.clickCount == 0){
+                    this.canvasShape.renderTextBox("|",this.startX,this.startY) ; 
+                    this.clickCount ++ ;
+                }else if(this.clickCount == 1){
+                    if(this.text.length != 0){
+                    const rStartX = this.infinite.ToXReal(this.lastX) ;
+                    const rStartY = this.infinite.ToYReal(this.lastY) ; 
+                    const shape = this.canvasShape.createTextBox(this.text,rStartX,rStartY) ;
+
+                    let l = this.ExistingShapes.length ; 
+                    this.insertIntoCoordShapeIdMap(shape,l-1) ;
+                    this.SocketHandlers.createShape(shape)  ; 
+
+                    this.text = "" ; 
+                    this.textIndex = 0 ;
+                    }
+                    this.clickCount = 0 ;
+                    this.infinite.draw() ;
+                }
+            }
             else if(["Move","Delete","Update"].some((s) => s == this.ShapeSelected)){
                 const shapeIndex : number = this.ShapeSelectedIndex = this.getShapeIndex(this.startX,this.startY) 
                 console.log(shapeIndex);
@@ -94,35 +123,28 @@ export class Game{
                     this.SocketHandlers.deleteShape(this.ExistingShapes[shapeIndex].id ) ;
                 }
             }
+            this.lastX = this.startX ;
+            this.lastY = this.startY ; 
         },
 
         setEndingCoords : (e: globalThis.MouseEvent) => { // pointerup
             this.selected = false ; 
-            if(this.ShapeSelected == "Move"){
+            if(this.ShapeSelected == "Text") return ;
+            if(this.ShapeSelected == "Move" || this.ShapeSelected == "Update"){
                 if(this.ShapeSelectedIndex >= 0){
+
                   // deleting existing coords keys of this shape
                   this.CoordShapeIndexMap.forEach((value: number, key: string) =>{
                         if(value == this.ShapeSelectedIndex) this.CoordShapeIndexMap.delete(key) ;                      
                   })
 
-                  // updating coords
-                  if(["Text","Pencil"].some((type : string) => type == (this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).type)){
-                    const UpdatedCoords = (this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).coords.map(({x,y} : Coordinate) : Coordinate => 
-                        {
-                            return {x : x + this.driftX,  y : y + this.driftY}
-                        }
-                    )
-                    this.ExistingShapes[this.ShapeSelectedIndex].shape.coords = UpdatedCoords ;
-                    this.driftX = this.driftY = 0 ;
-                  }
-
                   this.insertIntoCoordShapeIdMap(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ShapeSelectedIndex) ;
                   this.SocketHandlers.updateShape(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ExistingShapes[this.ShapeSelectedIndex].id)
                   this.ShapeSelectedIndex = -1 ;
+                  this.infinite.draw() ;
                 }
                 return ; 
             }
-            if(['Text','Update'].some((shape) => this.ShapeSelected == shape )) return ;
 
             this.EndX = e.clientX ; 
             this.EndY = e.clientY ; 
@@ -157,18 +179,26 @@ export class Game{
             this.cxt.lineWidth = 2 ;    
             this.cxt.strokeStyle = "rgba(255,255,255)" ;
 
-            if( this.ShapeSelected == "Pencil") this.Coords.push({x : e.clientX, y : e.clientY}) ;
-
             if(this.ShapeSelected == "Move"){
                 const dx = ((e.clientX) - (this.lastX))/this.infinite.scale  ; 
                 const dy = ((e.clientY) - (this.lastY))/this.infinite.scale  ;
 
                 if(this.ShapeSelectedIndex >= 0){
-                    this.driftX += dx ; this.driftY += dy ;
-                    this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.x += dx ; 
-                    this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.y += dy ; 
-                    this.ExistingShapes[this.ShapeSelectedIndex].shape.endXY.x   += dx ; 
-                    this.ExistingShapes[this.ShapeSelectedIndex].shape.endXY.y   += dy ; 
+                    if((this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).type == 'Pencil'){
+                        const UpdatedCoords = (this.ExistingShapes[this.ShapeSelectedIndex].shape as Shape).coords.map(({x,y} : Coordinate) : Coordinate => 
+                            {
+                                return {x : x + dx,  y : y + dy}
+                            }
+                        )
+                        this.ExistingShapes[this.ShapeSelectedIndex].shape.coords = UpdatedCoords ;
+                    }
+                    else {
+                        this.driftX += dx ; this.driftY += dy ;
+                        this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.x += dx ; 
+                        this.ExistingShapes[this.ShapeSelectedIndex].shape.startXY.y += dy ; 
+                        this.ExistingShapes[this.ShapeSelectedIndex].shape.endXY.x   += dx ; 
+                        this.ExistingShapes[this.ShapeSelectedIndex].shape.endXY.y   += dy ; 
+                    }
                 }
                 else{
                     this.infinite.offsetX += dx ;
@@ -180,7 +210,10 @@ export class Game{
             }
             else if(this.ShapeSelected == "Rectangle") this.canvasShape.renderRectangle(this.startX,this.startY,width,height) ;
             else if(this.ShapeSelected == "Line") this.canvasShape.renderLine(this.startX,this.startY,e.clientX,e.clientY) ;
-            else if(this.ShapeSelected == "Pencil") this.canvasShape.renderPencil(this.Coords) ; 
+            else if(this.ShapeSelected == "Pencil"){ 
+                this.Coords.push({x : e.clientX, y : e.clientY}) ;
+                this.canvasShape.renderPencil(this.Coords) ;
+            } 
             else if(this.ShapeSelected == "Circle"){    
                 const radiusX = (height <= 0) ? 0 : height ;  
                 const radiusY = (width <= 0)  ? 0 : width ;
@@ -195,12 +228,15 @@ export class Game{
 
     private KeyEventHandler = {
         onkeydown : (e : globalThis.KeyboardEvent) => {
-            if(this.ShapeSelected != "Text") return ;
-
-            if(e.key == "Backspace") this.text = this.text.slice(0,-1) ; 
+            if(this.ShapeSelected != "Text" || this.clickCount == 0) return ;
+            if(e.key == "Backspace") {
+                this.text = this.text.slice(0,this.textIndex-1) + this.text.slice(this.textIndex,this.text.length) ;
+                if(this.textIndex == 0) return ;
+                this.textIndex -- ;
+            }
             else if(e.key == "Enter") this.text += "\n" ; 
             else if(e.key == "Escape"){
-                if(this.text.length == 0) return ;
+                if(this.text.length != 0){  
                 const rStartX = this.infinite.ToXReal(this.startX) ;
                 const rStartY = this.infinite.ToYReal(this.startY) ; 
                 const shape = this.canvasShape.createTextBox(this.text,rStartX,rStartY) ;
@@ -210,11 +246,29 @@ export class Game{
                 this.SocketHandlers.createShape(shape)  ; 
 
                 this.text = "" ; 
+                this.textIndex = 0 ;
+                this.clickCount = 0 ;
+                }
+                this.infinite.draw() ;
                 return ;
             }
-            else if(e.key.length == 1) this.text += e.key ;
+            else if(e.key == "ArrowRight"){
+                if(this.textIndex == this.text.length) return ;
+                this.textIndex ++ ; 
+            }
+            else if(e.key == "ArrowLeft"){
+                if(this.textIndex == 0) return ;
+                this.textIndex-- ; 
+            }
+            else if(e.key.length == 1){ 
+                this.text = this.text.slice(0,this.textIndex) + e.key + this.text.slice(this.textIndex,this.text.length)
+                this.textIndex++ ; 
+            }
+            
             this.infinite.draw() ;
-            this.canvasShape.renderTextBox(this.text,this.startX,this.startY) ;
+            // this.canvasShape.renderTextBox(this.text,this.startX,this.startY) ;
+            const tempText =  this.text.slice(0,this.textIndex) + "|" + this.text.slice(this.textIndex,this.text.length) ;
+            this.canvasShape.renderTextBox(tempText,this.startX,this.startY) ;
         }
     }
 
@@ -365,15 +419,15 @@ export class Game{
         },
 
         createTextBox : (text : string,startX : number,startY : number) : Shape => {
-            const coords : Coordinate[] = this.canvasShape.getTextBoxCoords(text,startX,startY) ;
-            const l : number = coords.length ;
+            // const coords : Coordinate[] = this.canvasShape.getTextBoxCoords(text,startX,startY) ;
+            // const l : number = coords.length ;
             
             const shape : Shape = {
                 type    : "Text",
                 text    : text ,
                 startXY : {x : startX , y : startY},
-                endXY   : {x : coords[0].x  , y : coords[l-1].y},
-                coords  : coords
+                endXY   : {x : startX  , y : startY},  // will be updated when shape comes from DB
+                coords  : []
             }
             return shape ;            
         },

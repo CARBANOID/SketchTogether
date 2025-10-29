@@ -40,8 +40,6 @@ export class Infinite{
                 const zoomFactor = 1 - event.deltaY * 0.01;
                 const newScale = Math.max(0.1, Math.min(20, this.scale * zoomFactor)); 
                 
-                console.log(event.deltaY)
-
                 const mouseXVirtual = this.ToXVirtual(event.offsetX);
                 const mouseYVirtual = this.ToYVirtual(event.offsetY);
                 

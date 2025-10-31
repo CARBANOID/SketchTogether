@@ -107,12 +107,17 @@ export class Game{
                         this.textUpdate = false ;
 
                         if(this.text != this.ExistingShapes[this.ShapeSelectedIndex].shape.text){
+                            if(this.ExistingShapes[this.ShapeSelectedIndex].shape.text.length == 0){
+                                this.SocketHandlers.deleteShape(this.ExistingShapes[this.ShapeSelectedIndex].id) ; 
+                            }
+                            else{ 
                             // deleting existing coords keys of this shape
                             this.CoordShapeIndexMap.forEach((value: number, key: string) =>{
                                 if(value == this.ShapeSelectedIndex) this.CoordShapeIndexMap.delete(key) ;                      
                             })
                             this.insertIntoCoordShapeIdMap(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ShapeSelectedIndex) ;
                             this.SocketHandlers.updateShape(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ExistingShapes[this.ShapeSelectedIndex].id)
+                            }
                         }
                         this.ShapeSelectedIndex = -1 ;
                     }
@@ -227,8 +232,8 @@ export class Game{
             this.cxt.strokeStyle = "rgba(255,255,255)" ;
 
             if(this.ShapeSelected == "Move" || this.ShapeSelected == "Update"){
-                const dx = ((e.clientX) - (this.lastX))/this.infinite.scale  ; 
-                const dy = ((e.clientY) - (this.lastY))/this.infinite.scale  ;
+                const dx = ((e.clientX) - (this.lastX)) * this.infinite.scale  ; 
+                const dy = ((e.clientY) - (this.lastY)) * this.infinite.scale  ;
 
                 if(this.ShapeSelectedIndex >= 0){
                    if(this.ShapeSelected == "Update"){
@@ -257,8 +262,8 @@ export class Game{
                     }
                 }
                 else if(this.ShapeSelected == "Move"){
-                    this.infinite.offsetX += dx ;
-                    this.infinite.offsetY += dy ;
+                    this.infinite.offsetX += dx/this.infinite.scale ;
+                    this.infinite.offsetY += dy/this.infinite.scale ;
                 }
                 this.infinite.draw() ;
                 this.lastX = e.clientX ; 
@@ -302,13 +307,18 @@ export class Game{
                 else if(e.key == "Escape"){
                     if(this.textUpdate){
                         this.textUpdate = false ;
-                        // deleting existing coords keys of this shape
                         if(this.text != this.ExistingShapes[this.ShapeSelectedIndex].shape.text){
-                        this.CoordShapeIndexMap.forEach((value: number, key: string) =>{
-                                if(value == this.ShapeSelectedIndex) this.CoordShapeIndexMap.delete(key) ;                      
-                        })
-                        this.insertIntoCoordShapeIdMap(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ShapeSelectedIndex) ;
-                        this.SocketHandlers.updateShape(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ExistingShapes[this.ShapeSelectedIndex].id)
+                            if(this.ExistingShapes[this.ShapeSelectedIndex].shape.text.length == 0){
+                                this.SocketHandlers.deleteShape(this.ExistingShapes[this.ShapeSelectedIndex].id) ; 
+                            }
+                            else{ 
+                                // deleting existing coords keys of this shape
+                                this.CoordShapeIndexMap.forEach((value: number, key: string) =>{
+                                        if(value == this.ShapeSelectedIndex) this.CoordShapeIndexMap.delete(key) ;                      
+                                })
+                                this.insertIntoCoordShapeIdMap(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ShapeSelectedIndex) ;
+                                this.SocketHandlers.updateShape(this.ExistingShapes[this.ShapeSelectedIndex].shape,this.ExistingShapes[this.ShapeSelectedIndex].id) ;
+                            }
                         }
                         this.ShapeSelectedIndex = -1 ;
                     }
@@ -355,7 +365,6 @@ export class Game{
             }
         }
     }
-
 
     initKeyEvents = () =>{
         this.canvas.addEventListener("keydown",this.KeyEventHandler.onkeydown) ; 
@@ -548,7 +557,19 @@ export class Game{
         }       
     }
  
-    SelectShape = (shapeName : ShapeLabelType) => this.ShapeSelected = shapeName ;
+    private refreshMembers = () =>{
+        this.selected = this.textUpdate = false ;
+        this.startX = this.startY = this.lastX = this.lastY = this.EndX = this.EndY = this.driftX = this.driftY = 0 ;
+        this.Coords = [] ;
+        this.text = "" ;
+        this.ShapeSelectedIndex -1 ;
+        this.clickCount = 0
+    }
+
+    SelectShape = (shapeName : ShapeLabelType) => {
+        this.ShapeSelected = shapeName ; 
+        this.refreshMembers() ;
+    }
     
     init = async() => {
        this.ExistingShapes = await getExisitingShapes(this.roomId) ;
